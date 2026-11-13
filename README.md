@@ -142,6 +142,23 @@ curl http://127.0.0.1:8000/health
 
 - `TTS_DEFAULT_VOICE`: `mrt_female` (default), `mrt_male`, atau `offline`
 - `TTS_DEFAULT_CHIME`: `false` (default) atau `true` *(untuk endpoint `/sounds`, butuh `ffmpeg` agar output tetap `.mp3`)*
+- `CORS_ALLOW_ORIGINS`: `*` (default) atau daftar origin dipisah koma, mis. `https://antrian.rsyasyfin.com,https://admin.rsyasyfin.com`
+- `RATE_LIMIT_PER_MINUTE`: `120` (default). Isi `0` untuk mematikan. Batas dihitung per IP klien.
+- `TRUST_PROXY_HEADERS`: `true` (default). Biarkan aktif bila berjalan di belakang nginx/Caddy agar IP asli dibaca dari `X-Forwarded-For`.
+
+Contoh menjalankan dengan pembatasan lebih ketat:
+
+```bash
+docker run -d \
+  --name queue-tts-api \
+  --restart unless-stopped \
+  -p 127.0.0.1:8000:8000 \
+  -e RATE_LIMIT_PER_MINUTE=60 \
+  -e CORS_ALLOW_ORIGINS=https://antrian.rsyasyfin.com \
+  queue-tts-api
+```
+
+Bila batas terlampaui, API membalas `429` dengan header `Retry-After` (detik). Endpoint `/health`, `/docs`, dan `/openapi.json` dikecualikan agar monitoring tidak ikut terblokir.
 
 ---
 

@@ -6,7 +6,17 @@ import shutil
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request, Response, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
+
+from app.limits import (
+    SlidingWindowLimiter,
+    client_key,
+    get_cors_origins,
+    get_rate_limit_per_minute,
+    get_trust_proxy_headers,
+)
 
 from app.tts_service import (
     VOICE_PROFILES,
@@ -36,6 +46,8 @@ def _get_default_chime() -> bool:
 
 
 audio_store = EphemeralAudioStore(max_items=100, ttl_seconds=120)
+rate_limiter = SlidingWindowLimiter(limit=get_rate_limit_per_minute())
+RATE_LIMIT_EXEMPT_PATHS = {"/health", "/docs", "/redoc", "/openapi.json"}
 
 
 @asynccontextmanager
@@ -69,6 +81,43 @@ async def collapse_double_slashes(request: Request, call_next):
         request.scope["path"] = normalized
         request.scope["raw_path"] = normalized.encode("utf-8")
     return await call_next(request)
+
+
+@app.middleware("http")
+async def enforce_rate_limit(request: Request, call_next):
+    """Batasi permintaan per IP agar kredensial TTS tidak dieksploitasi pihak lain."""
+    if rate_limiter.enabled and request.scope.get("path") not in RATE_LIMIT_EXEMPT_PATHS:
+        forwarded = (
+            request.headers.get("x-forwarded-for")
+            if get_trust_proxy_headers()
+            else None
+        )
+        key = client_key(
+            forwarded, request.client.host if request.client else None
+        )
+        allowed, retry_after = rate_limiter.check(key)
+        if not allowed:
+            return JSONResponse(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                content={"detail": "Terlalu banyak permintaan. Coba lagi nanti."},
+                headers={
+                    "Retry-After": str(int(retry_after)),
+                    "Access-Control-Allow-Origin": "*",
+                },
+            )
+    return await call_next(request)
+
+
+# Didaftarkan setelah middleware di atas agar menjadi lapisan terluar,
+# sehingga respons 429 pun tetap membawa header CORS.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=get_cors_origins(),
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
+    expose_headers=["Content-Disposition", "Retry-After"],
+    max_age=86400,
+)
 
 
 class TTSRequest(BaseModel):
@@ -146,6 +195,8 @@ async def health() -> dict:
         "default_chime": _get_default_chime(),
         "ffmpeg_available": shutil.which("ffmpeg") is not None,
         "offline_available": is_offline_tts_available(),
+        "rate_limit_per_minute": rate_limiter.limit,
+        "cors_origins": get_cors_origins(),
     }
 
 

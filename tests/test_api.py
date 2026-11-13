@@ -14,6 +14,7 @@ from app.main import app
 @pytest.fixture
 def client() -> Iterator[TestClient]:
     main_module.audio_store._items.clear()
+    main_module.rate_limiter.reset()
     with TestClient(app) as test_client:
         yield test_client
 
@@ -100,3 +101,53 @@ def test_validation_and_missing_sound(client: TestClient) -> None:
 
     missing = client.get("/sounds/tidak_ada.mp3")
     assert missing.status_code == 404
+
+
+def test_cors_preflight_allows_cross_origin_calls(client: TestClient) -> None:
+    resp = client.options(
+        "/sounds",
+        headers={
+            "Origin": "https://antrian.example.com",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type",
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.headers["access-control-allow-origin"] == "*"
+    assert "POST" in resp.headers["access-control-allow-methods"]
+
+
+def test_cors_header_present_on_real_response(client: TestClient) -> None:
+    resp = client.get("/health", headers={"Origin": "https://antrian.example.com"})
+    assert resp.status_code == 200
+    assert resp.headers["access-control-allow-origin"] == "*"
+
+
+def test_rate_limit_returns_429_with_retry_after(client: TestClient) -> None:
+    previous = main_module.rate_limiter.limit
+    main_module.rate_limiter.limit = 2
+    main_module.rate_limiter.reset()
+    try:
+        payload = {"text": "   "}  # 422 murah: tidak memanggil layanan TTS
+        for _ in range(2):
+            assert client.post("/tts", json=payload).status_code == 422
+
+        blocked = client.post("/tts", json=payload)
+        assert blocked.status_code == 429
+        assert int(blocked.headers["Retry-After"]) >= 1
+        assert blocked.headers["access-control-allow-origin"] == "*"
+    finally:
+        main_module.rate_limiter.limit = previous
+        main_module.rate_limiter.reset()
+
+
+def test_health_is_exempt_from_rate_limit(client: TestClient) -> None:
+    previous = main_module.rate_limiter.limit
+    main_module.rate_limiter.limit = 1
+    main_module.rate_limiter.reset()
+    try:
+        for _ in range(5):
+            assert client.get("/health").status_code == 200
+    finally:
+        main_module.rate_limiter.limit = previous
+        main_module.rate_limiter.reset()
