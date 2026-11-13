@@ -1,0 +1,4 @@
+workflows:
+  syncSpecToCollection:
+    - spec: ../postman/specs/openapi.json
+      collection: ../postman/collections/Queue Monitor TTS API

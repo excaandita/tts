@@ -1,0 +1,5 @@
+$kind: collection
+description: API TTS Bahasa Indonesia gratis, cepat (in-memory tanpa simpan file ke disk), suara seragam ala MRT Jakarta, dan kompatibel langsung dengan SoundOfText.
+variables:
+  baseUrl: /
+  sound_id: string

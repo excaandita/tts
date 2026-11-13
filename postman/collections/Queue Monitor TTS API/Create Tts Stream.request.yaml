@@ -1,0 +1,19 @@
+$kind: http-request
+description: Generate audio in memory and return audio bytes directly (no disk storage).
+url: "{{baseUrl}}/tts"
+method: POST
+headers:
+  Content-Type: application/json
+  Accept: application/json
+body:
+  type: json
+  content: |-
+    {
+      "text": "strin",
+      "voice": "offline",
+      "chime": false,
+      "format": "mp3"
+    }
+settings: {}
+examples: ./.resources/Create Tts Stream.resources/examples
+order: 2000

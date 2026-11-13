@@ -1,0 +1,9 @@
+$kind: http-request
+description: ""
+url: "{{baseUrl}}/{{sound_id}}.mp3"
+method: GET
+headers:
+  Accept: application/json
+settings: {}
+examples: ./.resources/Soundoftext Download Root.resources/examples
+order: 4000

@@ -1,0 +1,20 @@
+[project]
+name = "mrt-tts-api"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.10"
+dependencies = [
+    "edge-tts>=7.3.1",
+    "fastapi>=0.162.5",
+    "pydantic>=2.14.3",
+    "uvicorn>=0.54.0",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=9.2.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

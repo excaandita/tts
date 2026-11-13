@@ -1,0 +1,21 @@
+$kind: http-request
+description: Drop-in replacement for SoundOfText `POST /sounds` (in-memory only).
+url: "{{baseUrl}}/sounds"
+method: POST
+headers:
+  Content-Type: application/json
+  Accept: application/json
+body:
+  type: json
+  content: |-
+    {
+      "data": {
+        "text": "string",
+        "voice": "string",
+        "voiceName": "string"
+      },
+      "engine": "Google"
+    }
+settings: {}
+examples: ./.resources/Soundoftext Generate.resources/examples
+order: 1000
